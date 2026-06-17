@@ -1,0 +1,70 @@
+\section{Architecture}
+\label{sec:arch}
+
+The two agents share one BDI pipeline; only the top of the stack differs
+(Agent~B adds the LLM and team layers). Each server event triggers the loop:
+
+\begin{verbatim}
+  socket events (map, config, you, sensing, msg)
+            |
+        BeliefBase        map graph, me, parcels, agents, mission, claims
+            |
+   OptionGenerator        what is possible (pickup / deliver / explore / wait)
+            |
+       Strategy           what is preferable  (swappable; LLM adapts it via
+            |              mission state for Agent B)
+   IntentionRevision      commit / revise (replace policy + hysteresis)
+            |
+     PlanLibrary          how: GoPickUp, DeliverCarried, Explore, Wait,
+            |              mission + handover plans (Agent B),
+            |              PddlGoTo -> FollowPathGoTo (BFS fallback)
+     ActionExecutor       serialized move/pickup/putdown, red-light gate
+\end{verbatim}
+
+\paragraph{Control loop.} On each \texttt{sensing}/\texttt{you} event (and a
+periodic timer, since sensing is change-driven) the agent revises beliefs,
+regenerates options, and lets intention revision decide whether to keep the
+current intention or switch. A new option must beat the current one by a
+hysteresis margin before the agent commits, which prevents target thrashing.
+The chosen intention is achieved by the first applicable plan in the plan
+library; failures fall through to the next plan.
+
+\paragraph{Design principles.} (i)~\emph{Infrastructure vs.\ strategy}:
+strategies only score options; they never move the agent, so a new strategy is
+one file (Section~\ref{sec:bdi}). (ii)~\emph{Deterministic low-level
+movement}: pathfinding is BFS on a directed graph; the LLM stays high-level and
+never drives motion. (iii)~\emph{Serialized actions}: all actuator calls are
+chained into a promise queue to respect the server's action mutex.
+
+\paragraph{Repository layout.}
+\begin{center}\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+Path & Role \\
+\midrule
+\texttt{src/core/} & BeliefBase, OptionGenerator, IntentionRevision, Intention, PlanLibrary, ActionExecutor \\
+\texttt{src/planning/} & GridGraph (directed, arrow tiles), PathPlanner (BFS), PddlPlanner \\
+\texttt{src/strategies/} & four baseline strategies $+$ a registry (Section~\ref{sec:bdi}) \\
+\texttt{src/llm/} & mission interpreter + tools (Agent~B, Section~\ref{sec:llm}) \\
+\texttt{src/communication/} & team protocol (Section~\ref{sec:coord}) \\
+\texttt{src/metrics/} & run logging and result aggregation \\
+\texttt{scripts/} & run / experiment / baseline / campaign / smoke-test \\
+\texttt{experiments/} & results and the committed baseline write-up \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{Verification tooling.} An offline smoke test (\texttt{npm test}, no
+server or network) pins the load-bearing semantics: directed-graph
+construction with one-way arrow tiles, BFS and reversed multi-source delivery
+distances, belief revision (whole-tick decay projection, negative evidence),
+strategy selection, mission parsing, PDDL problem generation, and ack
+normalization. It runs in milliseconds and gates every change.
+
+\paragraph{Robustness note.} We never trust a single server ack shape: the
+running course servers differ from the SDK type declarations. Pickup/putdown
+acks may carry \texttt{\{id\}} objects, plain strings, or no usable id at all
+(observed both locally and on the course server). All ack ids pass through a
+normalization layer, with belief-reconciliation fallbacks when the server
+contradicts the carry belief --- a fix prompted by a live ``phantom-carry''
+loop (Section~\ref{sec:bdi}).

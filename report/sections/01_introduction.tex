@@ -1,0 +1,30 @@
+\section{Introduction}
+
+\emph{Deliveroo.js} is a grid-world game in which autonomous agents pick up
+parcels and deliver them to delivery tiles for points. Parcel rewards decay
+over time, actions are serialized by the server, and the world is only
+partially observable through local sensing. The exam task is to build
+\textbf{Agent~A}, a BDI agent for \emph{Challenge~1} (single-agent parcel
+farming on eight maps), and \textbf{Agent~B}, an LLM-driven agent for
+\emph{Challenge~2} (agents that shout natural-language missions), together with
+Agent~A\,--\,Agent~B coordination and a meaningful \textbf{PDDL} planning
+component.
+
+We built a single ES-module codebase shared by both agents: belief revision,
+option generation, swappable utility-based strategies, intention revision with
+hysteresis, and a plan library with deterministic BFS movement on the directed
+map graph, plus an optional PDDL plan for the \texttt{go\_to} sub-goal. Agent~B
+adds, on top of the same machinery, an LLM mission interpreter and a structured
+team protocol.
+
+The headline Challenge~1 result is that a deliberately simple
+\texttt{greedy-nearest} baseline is the strongest of four strategies across all
+eight maps: these maps reward raw delivery throughput, and the value-aware
+strategies lose because they deliver in small batches. We reached this
+conclusion through a systematic benchmark and a log-level diagnosis that also
+falsified our initial ``slow decay favours batching'' hypothesis --- a worked
+example of using the metrics pipeline for analysis, not only scoring. The rest
+of the report describes the architecture (Section~\ref{sec:arch}), Agent~A and
+its strategies (Section~\ref{sec:bdi}), the LLM agent, PDDL and coordination
+(Sections~\ref{sec:llm}--\ref{sec:coord}), and the experiments
+(Section~\ref{sec:experiments}).

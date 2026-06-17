@@ -1,0 +1,54 @@
+% =============================================================================
+% ASA exam project report — Deliveroo.js autonomous agents
+% Max 10 pages (exam requirement). Compile with pdflatex.
+% =============================================================================
+\documentclass[10pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}     % report tables (strategy comparisons)
+\usepackage{listings}     % short code excerpts only when they clarify design
+\usepackage{hyperref}
+\usepackage{xcolor}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  language=Java % closest builtin to JavaScript; switch if listings-js is added
+}
+
+% Absorb the few long unbreakable \texttt{} tokens (e.g. identifier names)
+% as a last resort, so prose paragraphs do not overflow the margin.
+\emergencystretch=3em
+
+\title{Autonomous Software Agents for Deliveroo.js\\
+  \large BDI agent, LLM agent, coordination and PDDL planning}
+
+\author{
+  Matteo Gervasi \\ Student ID: 265428
+  \and
+  Teona Pop Stojanova \\ Student ID: 265750
+}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{center}
+  Repository: \url{https://github.com/Giambac/asa-deliveroo-agent}
+\end{center}
+
+\input{sections/01_introduction}
+\input{sections/02_architecture}
+\input{sections/03_bdi_agent}
+\input{sections/04_llm_agent}
+\input{sections/05_pddl}
+\input{sections/06_coordination}
+\input{sections/07_experiments}
+\input{sections/08_conclusion}
+
+\end{document}

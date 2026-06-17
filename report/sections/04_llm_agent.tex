@@ -1,0 +1,57 @@
+\section{Agent B: the LLM agent}
+\label{sec:llm}
+
+Agent~B is Agent~A plus a thin LLM layer. The LLM is used \emph{only} for
+high-level interpretation --- turning a natural-language mission into structured
+belief updates --- never inside the tick loop and never to drive movement, which
+stays deterministic BFS (Section~\ref{sec:arch}). This keeps reactivity intact
+while letting the agent understand requests it was not hard-coded for.
+
+\paragraph{Tools.} A small validated tool registry is defined ---
+\texttt{get\_state} (read beliefs), \texttt{set\_mission} (install a structured
+mission), \texttt{block\_tiles} / forbidden-delivery setters, and
+\texttt{send\_to\_teammate} / \texttt{reply\_to\_agent} (communication) ---
+available for tool-loop experiments and future extensions (the lab8 pattern).
+The production path does not drive a live tool-calling loop: it interprets each
+mission into schema-constrained JSON (next paragraph). The design choice is
+deliberate either way --- there is \emph{no} low-level movement tool, so the LLM
+expresses \emph{what} the mission is and the BDI machinery decides \emph{how} ---
+and every tool argument is schema-validated before it touches beliefs.
+
+\paragraph{Prompt engineering and fallback.} The mission-interpretation prompt
+asks for schema-constrained JSON (mission kind, targets, tolerance, thresholds);
+the result is validated and rejected if malformed. A deterministic parser backs
+the LLM for latency- and availability-critical templates --- JSON coordinate
+lists, red/green light, arithmetic question--answer, and value-threshold wording
+(``lower or equal to'', ``Threshold is''). The fallback is a \emph{resilience
+layer, not the intelligence}: an all-fallback pass (gateway unreachable) still
+passed every scenario, but the LLM is what generalizes to reworded requests.
+
+\paragraph{Request handling across Challenge~2 levels.} \emph{Level~1 (atomic
+requests)}: arithmetic and positional questions are answered directly
+(e.g.\ 26c2\_3, ``compute~$\to$~22'', rewarded). \emph{Level~2 (strategy
+adaptation)}: missions install constraints/policies that reshape the utility ---
+positional goals (\texttt{go\_to}), \texttt{deliver\_at} a tile,
+\texttt{deliver\_exactly\_n}, and \texttt{deliver\_less\_value\_than}. Several
+behaviours needed live fixes that the report records as findings:
+\texttt{deliver\_at} waits briefly before putdown so the observer can award the
+target delivery; \texttt{deliver\_exactly\_n} suppresses premature deliveries
+until the required batch is carried, with a final pre-putdown guard for missions
+that arrive mid-intention; forbidden-tile updates invalidate stale paths before
+the next move; and \texttt{deliver\_less\_value\_than} uses selective under-cap
+putdown (deliver only the parcels below the threshold).
+
+\paragraph{Latency safety --- a live finding.} With the LLM in the loop,
+interpretation latency is variable and can be large (1.8--8.7\,s observed). On
+26c2\_4 (movement through a tile band forbidden under a $-1000$ penalty) an
+8.7\,s interpretation let the agent cross a forbidden tile and take the penalty,
+scoring $-377$. The fix parses each incoming message deterministically and
+\emph{pre-applies} any safety-critical constraint (forbidden \texttt{go\_to} /
+\texttt{deliver\_at}, light state; \texttt{MissionInterpreter.isSafetyCritical})
+to beliefs the instant it arrives; the LLM result still runs and remains
+authoritative, reconciling idempotently. This closes the latency window while
+keeping the LLM the primary interpreter: the \texttt{mission\_preapplied} log
+precedes the LLM completion by $\sim$3\,s, and the same scenario then scored
+$+648$ with no penalty (\texttt{source=llm} preserved). Malformed LLM outputs
+are caught by validation and fall back to the deterministic parser. The full
+validation is reported in Section~\ref{sec:experiments}.

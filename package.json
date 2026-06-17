@@ -1,0 +1,22 @@
+{
+  "name": "asa-deliveroo-agent",
+  "version": "0.1.0",
+  "description": "BDI + LLM autonomous agents for Deliveroo.js (ASA course exam project, UniTn)",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "bdi": "node scripts/run-bdi.js",
+    "llm": "node scripts/run-llm.js",
+    "experiment": "node scripts/run-experiment.js",
+    "test": "node scripts/smoke-test.js"
+  },
+  "dependencies": {
+    "@unitn-asa/deliveroo-js-sdk": "^1.3.10",
+    "@unitn-asa/pddl-client": "^1.7.7",
+    "dotenv": "^16.0.3",
+    "openai": "^6.37.0"
+  },
+  "license": "MIT"
+}

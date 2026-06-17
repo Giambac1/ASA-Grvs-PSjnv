@@ -1,0 +1,58 @@
+\section{Agent A: the BDI agent}
+\label{sec:bdi}
+
+\paragraph{Beliefs.} The map is treated as static known knowledge: the graph is
+built once from the \texttt{map} event, with walls removed, delivery and
+spawner tiles tagged, and one-way arrow tiles encoded as directed edges (an
+edge is omitted when it opposes a tile's arrow). Parcels and other agents come
+from \emph{partial} sensing and are stamped with a \texttt{lastSeen} time. A
+parcel's reward is projected forward by subtracting whole decay ticks elapsed
+since it was last seen (matching the server's whole-tick semantics, not a
+fractional estimate). Negative evidence is applied: a remembered parcel that is
+absent from a now-visible tile is deleted.
+
+\paragraph{Belief reconciliation --- a live finding.} Early live testing
+exposed a concrete ``my knowledge was wrong, not the world'' case. The running
+server's pickup acks carried no \texttt{id} field (unlike the SDK types), so the
+agent marked a phantom parcel as carried and then issued 336 futile
+\texttt{putdown} retries in one 60\,s run, scoring 173. The fix normalizes all
+ack ids through one layer and reconciles beliefs against the server
+(\texttt{markTilePickedUp}/\texttt{clearCarried}) when no id is usable; the same
+scenario then scored 800 with 30 deliveries and zero futile retries. The empty
+ack shape was later confirmed on the course server too.
+
+\paragraph{Options and strategies.} The option generator emits
+\texttt{go\_pick\_up}, \texttt{deliver\_carried}, \texttt{explore} and
+\texttt{wait} (plus \texttt{go\_to\_mission\_target} for Agent~B). A strategy
+assigns each option a utility and \texttt{selectOption} takes the argmax, so
+strategies decide but never act. Four baselines are implemented:
+\texttt{greedy-nearest} (nearest parcel; deliver only when nothing is
+reachable), \texttt{reward-distance} (maximize projected \emph{delivered} value,
+reward minus decay\,$\times$\,distance), \texttt{delivery-threshold} (batch
+until $N$ parcels, then deliver), and \texttt{mission-aware}
+(\texttt{reward-distance} plus mission constraints, Agent~B's default). A
+post-hoc \texttt{reward-distance-total} variant is discussed in
+Section~\ref{sec:experiments}. Adding a strategy is a single file plus a
+registry entry; the rest of the pipeline is untouched.
+
+\paragraph{Intention revision.} Revision follows a replace policy with an
+additive hysteresis margin: a candidate option must exceed the current
+intention's utility by the margin before the agent switches, damping
+target thrashing when several parcels have similar value. An intention stops
+when achieved, impossible, or no longer worthwhile; on commit to a pickup the
+agent announces a claim to its teammate (Section~\ref{sec:coord}).
+
+\paragraph{Plans and failure handling.} An intention is achieved by the first
+applicable plan in the library, with the rest as fallback (e.g.\ the PDDL
+\texttt{go\_to} plan falls back to BFS path following). Movement tolerates a few
+failed moves (dynamic obstacles) before declaring a tile soft-blocked so the
+next BFS routes around it. Shutdown is close-safe: tearing the agent down
+mid-plan (e.g.\ between benchmark runs) cannot crash the process.
+
+\paragraph{Partial observability and limits.} The agent therefore has full
+knowledge of the static layout but only partial, decaying knowledge of parcels
+and opponents; when no parcel is worth pursuing it explores the
+least-recently-seen spawner. It does \emph{not} model crates or pushable
+obstacles, so maps with crate mechanics are out of scope --- confirmed by a
+course-server check where the live \texttt{crates\_one\_way} map left most tiles
+unreachable (Section~\ref{sec:experiments}).
